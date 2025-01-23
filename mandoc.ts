@@ -50,5 +50,24 @@ async function fetch(req: Request) {
     const proc = spawn(["groff", "-mandoc", "-Thtml", manPath], {
         cwd: 'html',
     });
-    return new Response(proc.stdout);
+
+    const res = new Response(proc.stdout);
+
+    const rewriter = createRewriter();
+
+    return rewriter.transform(res);
+}
+
+function createRewriter() {
+    return new HTMLRewriter().on("a", {
+        element(a) {
+            let href = a.getAttribute('href')
+            if (href) {
+                const m = href.match(/^man:(.*?)(?:\((\d+)\))?$/);
+                if (m) {
+                    a.setAttribute('href', `/${m[1]}${m[2] ? `.${m[2]}` : ''}`)
+                }
+            }
+        },
+    });
 }
