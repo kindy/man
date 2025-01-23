@@ -50,5 +50,52 @@ async function fetch(req: Request) {
     const proc = spawn(["groff", "-mandoc", "-Thtml", manPath], {
         cwd: 'html',
     });
-    return new Response(proc.stdout);
+
+    const fullHtml = await new Response(proc.stdout).arrayBuffer();
+
+    const rewriter = createRewriter();
+
+    const ret = rewriter.transform(fullHtml) as any as ArrayBuffer;
+
+    return new Response(ret, {
+        headers: {
+            'content-type': 'text/html'
+        }
+    });
+}
+
+function createRewriter() {
+    return new HTMLRewriter()
+        .on("a", {
+            element(a) {
+                let href = a.getAttribute('href')
+                if (href) {
+                    let m = href.match(/^man:(.*?)(?:\((\d+)\))?$/);
+                    if (m) {
+                        a.setAttribute('href', `/${m[1]}${m[2] ? `.${m[2]}` : ''}`)
+                    }
+                }
+            },
+        })
+
+        .on("head", {
+            element(head) {
+                head.append(`<style>
+#manpage {
+  max-width: 46em;
+}
+</style>`, { html: true });
+            },
+        })
+
+        .on("body", {
+            element(body) {
+                console.log('got body')
+
+                body.prepend('<!-- <man --><div id=manpage>', { html: true });
+
+                body.append('</div><!-- man> -->', { html: true });
+            },
+        })
+        ;
 }
